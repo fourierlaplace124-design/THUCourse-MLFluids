@@ -1,0 +1,20 @@
+% !TeX program = xelatex
+% 所有源文件使用 UTF-8；从本文件所在目录编译。
+\documentclass[UTF8,a4paper,zihao=-4,fontset=fandol]{ctexart}
+\usepackage{notes}
+
+% 每门课程只需修改这里的基本信息。
+\title{课程名称\\[0.4em]\large 课程笔记}
+\author{姓名}
+\date{学期：20XX--20XX 学年，第 X 学期}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+% 每讲一个文件；按授课顺序添加 \input，路径相对于 main.tex。
+\input{lectures/01-introduction}
+% \input{lectures/02-next-topic}
+
+\end{document}

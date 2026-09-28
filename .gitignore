@@ -1,0 +1,23 @@
+# LaTeX 编译产物；保留 figures/ 中的 PDF 插图。
+/build/
+/main.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.lol
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+*.synctex(busy)
+.DS_Store

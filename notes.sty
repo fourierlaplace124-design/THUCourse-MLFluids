@@ -1,0 +1,77 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{notes}[2026/09/28 Minimal Chinese course notes]
+
+% 与 main.tex 中的 ctexart 配合使用，统一采用 XeLaTeX。
+\RequirePackage{iftex}
+\RequireXeTeX
+\RequirePackage[margin=25mm]{geometry}
+\RequirePackage{amsmath,amssymb,amsthm,bm}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs,tabularx}
+\RequirePackage{xcolor}
+\RequirePackage{listings}
+\RequirePackage{xeCJK-listings}
+\RequirePackage[unicode,hidelinks]{hyperref}
+\RequirePackage{bookmark}
+
+% 页面：简洁标题、页底页码；不强行拉伸段落以填满页面。
+\pagestyle{plain}
+\raggedbottom
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{2}
+\graphicspath{{figures/}}
+\numberwithin{equation}{section}
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
+
+% 所有陈述共用“节号.序号”，便于定位和引用。
+\newtheoremstyle{notesstatement}
+  {6pt}{6pt}{\normalfont}{}{\bfseries}{：}{0.5em}{}
+\theoremstyle{notesstatement}
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}[theorem]{引理}
+\newtheorem{proposition}[theorem]{命题}
+\newtheorem{corollary}[theorem]{推论}
+\newtheorem{definition}[theorem]{定义}
+\newtheorem{example}[theorem]{例题}
+\newtheorem{remark}[theorem]{备注}
+\renewcommand{\proofname}{证明}
+
+% 少量通用数学宏；学科专用记号可继续集中加在这里。
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\dd}{\mathop{}\!\mathrm{d}}
+\newcommand{\vect}[1]{\bm{#1}}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\rank}{rank}
+
+% 代码只排版、不执行；无需 Python 高亮程序或 shell-escape。
+\definecolor{notescodebg}{gray}{0.97}
+\definecolor{notescodegray}{gray}{0.40}
+\lstdefinestyle{notescode}{
+  basicstyle=\small\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\color{notescodegray},
+  stringstyle=\color{notescodegray},
+  backgroundcolor=\color{notescodebg},
+  frame=single,
+  rulecolor=\color{black!20},
+  numbers=left,
+  numberstyle=\scriptsize\color{notescodegray},
+  numbersep=8pt,
+  xleftmargin=2em,
+  framexleftmargin=0.5em,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b,
+  aboveskip=1em,
+  belowskip=1em
+}
+\lstset{style=notescode}
+\renewcommand{\lstlistingname}{代码}
+\renewcommand{\lstlistlistingname}{代码目录}
+
+\endinput
