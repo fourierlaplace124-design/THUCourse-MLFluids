@@ -1,104 +1,760 @@
-
+% !TeX root = ../main.tex
+% 按课件顺序整理；原有五处 TODO 及六条补写注释已落实。
+% 页码默认指所提供 PDF 的文件页序，避免与教材印刷页码混淆。
 \section{计算流体力学基础}
 \label{sec:basics}
 
-\subsection{控制方程和矢量形式控制方程}
-    控制方程包含：质量守恒，动量守恒和能量守恒，若涉及燃烧和组分输运，就还包含组分守恒。
-    \todo{补全四个方程并参考我的形式说明每一项的意义}
-    \begin{equation}
-        \rho \frac{De}{Dt}[内能变化] =\rho\dot q[体热源]-p\nabla\cdot\mathbf v[压缩功]+\nabla\cdot(k\nabla T)+\text{黏性功}
-    \end{equation}
+本讲沿着“控制方程 $\to$ PDE 性质 $\to$ 离散与稳定性 $\to$ 计算网格”展开。
+CFD 用离散方程近似连续流动；计算结果需要解析解、网格加密研究和实验数据的检验。
+DNS 直接解析相关湍流尺度，LES 解析大尺度并模拟亚格子作用，RANS 求解平均场并封闭雷诺应力。
+数据驱动模型同样依赖数据质量与物理检验。\cite{cfd:ppt}
 
-    守恒形式可以被抽象为如下结构
-    \boxed{\text{内在局部变化 + 净流出 = 源项(Source)}}
-    
-    进一步给出矢量形式控制方程，这对CFD是更方便的形式：
-    U是conservative variables，J是组分变化，F，G和H分别是在x，y，z三个方向上的通量矢量。
-    NS方程进一步被压缩为
-    \begin{equation}
-        \frac{\partial U}{\partial t} + \frac{\partial F}{\partial x} + \frac{\partial G}{\partial y} + \frac{\partial H}{\partial z} = J
-    \end{equation}
-    \todo{说明F，G，H都是无粘项-粘性项，每一个I，V的公式}
+\subsection{控制方程和矢量形式控制方程}
+\label{sec:cfd-equations}
+\noindent\textit{依据：课件第18--26页；Anderson 第2.3--2.10节。}
+
+\paragraph{记号与假设}
+考虑连续介质，速度 $\mathbf v=(u,v,w)^{\mathsf T}$，密度 $\rho$，压强 $p$，
+温度 $T$，比内能 $e$，单位质量体力 $\mathbf g$。物质导数为
+\[
+  \frac{D}{Dt}=\frac{\partial}{\partial t}+\mathbf v\cdot\nabla,
+  \qquad E=e+\frac12|\mathbf v|^2,\qquad E_t=\rho E.
+\]
+$E$ 是单位质量总能，$E_t$ 是单位体积总能，均不含体力势能。
+$\dot q$ 是单位质量、单位时间的外部加热率；$\mathbf q$ 是热通量，二者不同。
+单组分 Fourier 导热给出 $\mathbf q=-k\nabla T$，$k$ 为导热系数。
+对牛顿流体，黏性应力为
+\begin{equation}
+ \boldsymbol\tau=\mu\bigl[\nabla\mathbf v+(\nabla\mathbf v)^{\mathsf T}\bigr]
+       +\lambda_b(\nabla\cdot\mathbf v)\mathbf I.
+ \label{eq:cfd-stress}
+\end{equation}
+这里 $\tau_{ij}$ 表示法向为 $j$ 的面上沿 $i$ 方向的黏性应力，且
+$\tau_{ij}=\tau_{ji}$；$\lambda_b$ 为第二黏性系数。
+Stokes 假设取 $\lambda_b=-2\mu/3$，这不是所有流体均成立的恒等式。
+
+\paragraph{A. 非守恒形式：跟随流体微团}
+质量、动量、内能和组分输运分别满足
+\begin{align}
+ &\frac{D\rho}{Dt}+\rho\nabla\cdot\mathbf v=0,
+ \label{eq:cfd-mass-material}\\
+ &\rho\frac{D\mathbf v}{Dt}=\rho\mathbf g-\nabla p+\nabla\cdot\boldsymbol\tau,
+ \label{eq:cfd-momentum-material}\\
+ &\underbrace{\rho\frac{De}{Dt}}_{\text{内能变化}}
+   =\underbrace{\rho\dot q}_{\text{体热源}}
+    \underbrace{-p\nabla\cdot\mathbf v}_{\text{压缩功}}
+    \underbrace{-\nabla\cdot\mathbf q}_{\text{热通量净输入}}
+    +\underbrace{\boldsymbol\tau:\nabla\mathbf v}_{\text{黏性耗散}},
+ \label{eq:cfd-internal-energy}\\
+ &\rho\frac{DY_s}{Dt}=-\nabla\cdot\mathbf j_s+\dot\omega_s,
+       \qquad s=1,\ldots,N_s.
+ \label{eq:cfd-species-material}
+\end{align}
+\begin{itemize}
+ \item 连续方程：$D\rho/Dt$ 为微团密度变化，$\rho\nabla\cdot\mathbf v$ 为体积膨胀的贡献。
+       不可压条件为 $D\rho/Dt=0$，结合连续方程得到 $\nabla\cdot\mathbf v=0$。
+ \item 动量方程：左端为惯性项；右端依次是体力、压力梯度力和黏性力，均按单位体积计。
+ \item 内能方程：压缩时 $\nabla\cdot\mathbf v<0$，压力功增加内能；
+       单组分时 $-\nabla\cdot\mathbf q=\nabla\cdot(k\nabla T)$。
+       $\boldsymbol\tau:\nabla\mathbf v=\sum_{i,j}\tau_{ij}\partial v_i/\partial x_j$
+       是双点积，不能写成含义不明的“$\boldsymbol\tau\cdot\nabla\cdot\mathbf v$”。
+ \item 组分方程：$Y_s$ 为质量分数，$\mathbf j_s=\rho Y_s\mathbf V_s$ 为相对质量平均速度的扩散通量，
+       $\mathbf V_s$ 为扩散速度；$\dot\omega_s$ 是单位体积化学反应质量源。
+       满足 $\sum_sY_s=1$、$\sum_s\mathbf j_s=0$、$\sum_s\dot\omega_s=0$，故只有 $N_s-1$ 个独立组分方程。
+\end{itemize}
+多组分时，忽略其他交叉输运效应，可取
+$\mathbf q=-k\nabla T+\sum_s h_s\mathbf j_s$，其中 $h_s$ 为组分比焓。
+若 $e$ 已包含生成内能，化学能转化通过组分变化体现，不另加重复的反应热源；
+若使用显内能，则须配套写出化学热源。\cite{cfd:ppt,cfd:anderson}
+
+\paragraph{B. 守恒形式：局部积累与净流出}
+对任意足够光滑的单位质量变量 $\phi$，由连续方程有
+\begin{equation}
+ \frac{\partial(\rho\phi)}{\partial t}
+ +\nabla\cdot(\rho\mathbf v\phi)=\rho\frac{D\phi}{Dt}.
+ \label{eq:cfd-conservative-identity}
+\end{equation}
+因此可以逐项改写为
+\begin{align}
+ &\rho_t+\nabla\cdot(\rho\mathbf v)=0,\\
+ &(\rho\mathbf v)_t+\nabla\cdot(\rho\mathbf v\otimes\mathbf v+p\mathbf I-\boldsymbol\tau)
+       =\rho\mathbf g,\\
+ &(\rho e)_t+\nabla\cdot(\rho e\mathbf v)
+       =\rho\dot q-p\nabla\cdot\mathbf v-\nabla\cdot\mathbf q
+                       +\boldsymbol\tau:\nabla\mathbf v,\\
+ &(\rho Y_s)_t+\nabla\cdot(\rho Y_s\mathbf v+\mathbf j_s)=\dot\omega_s.
+\end{align}
+这里 $\otimes$ 表示张量积。内能的输运虽已写成散度形式，压力功仍不在通量中；
+CFD 的\textbf{强守恒能量方程通常使用总能}。将动量方程与速度点乘得到动能方程，再与内能方程相加，有
+\begin{equation}
+ \frac{\partial E_t}{\partial t}
+ +\nabla\cdot\bigl[(E_t+p)\mathbf v-\boldsymbol\tau\cdot\mathbf v+\mathbf q\bigr]
+ =\rho\mathbf g\cdot\mathbf v+\rho\dot q.
+ \label{eq:cfd-total-energy}
+\end{equation}
+其结构是
+\[
+ \boxed{\text{单位体积守恒量的局部变化}+\text{通量的净流出}=\text{源项}}.
+\]
+例如，固定控制体 $\Omega$ 上的质量守恒为
+\[
+ \frac{\dd}{\dd t}\int_\Omega\rho\,\dd V
+ +\int_{\partial\Omega}\rho\mathbf v\cdot\mathbf n\,\dd A=0.
+\]
+固定控制体与随体微团是两种推导出发点；\textbf{守恒性取决于方程结构，不能仅由坐标是否移动判定}。
+光滑解下两种微分形式等价；有激波时，守恒律应按积分／弱形式理解，
+不能未经论证地用非守恒乘积替代，否则可能给出错误的激波速度。
+
+\paragraph{C. 矢量守恒形式与通量分解}
+先考虑单组分三维流动。取
+\begin{equation}
+ \mathbf U=\begin{bmatrix}\rho&\rho u&\rho v&\rho w&E_t\end{bmatrix}^{\mathsf T},
+ \qquad
+ \mathbf U_t+\mathbf F_x+\mathbf G_y+\mathbf H_z=\mathbf S.
+ \label{eq:cfd-vector-conservation}
+\end{equation}
+$\mathbf U$ 为守恒变量（conservative variables）；
+$\mathbf S$ 是\textbf{所有体源项的向量}，并非专指组分变化。
+本讲用 $\mathbf S$ 代替课件中的源项符号 $J$，以免与网格 Jacobian 混淆。
+在上述假设下，
+\[
+ \mathbf S=\begin{bmatrix}
+ 0&\rho g_x&\rho g_y&\rho g_z&\rho\mathbf g\cdot\mathbf v+\rho\dot q
+ \end{bmatrix}^{\mathsf T}.
+\]
+按课件约定，$\mathbf F=\mathbf F_I-\mathbf F_V$、
+$\mathbf G=\mathbf G_I-\mathbf G_V$、$\mathbf H=\mathbf H_I-\mathbf H_V$。
+其中 $I$ 表示无黏部分，$V$ 表示黏性与热输运部分：
+\begin{equation}
+ \mathbf F_I=\begin{bmatrix}\rho u\\\rho u^2+p\\\rho uv\\\rho uw\\u(E_t+p)\end{bmatrix},\quad
+ \mathbf G_I=\begin{bmatrix}\rho v\\\rho uv\\\rho v^2+p\\\rho vw\\v(E_t+p)\end{bmatrix},\quad
+ \mathbf H_I=\begin{bmatrix}\rho w\\\rho uw\\\rho vw\\\rho w^2+p\\w(E_t+p)\end{bmatrix}.
+ \label{eq:cfd-inviscid-fluxes}
+\end{equation}
+\begin{equation}
+ \mathbf F_V=\begin{bmatrix}0\\\tau_{xx}\\\tau_{yx}\\\tau_{zx}\\\Psi_x\end{bmatrix},\quad
+ \mathbf G_V=\begin{bmatrix}0\\\tau_{xy}\\\tau_{yy}\\\tau_{zy}\\\Psi_y\end{bmatrix},\quad
+ \mathbf H_V=\begin{bmatrix}0\\\tau_{xz}\\\tau_{yz}\\\tau_{zz}\\\Psi_z\end{bmatrix},
+ \label{eq:cfd-viscous-fluxes}
+\end{equation}
+其中能量输运分量全部展开为
+\begin{align*}
+ \Psi_x&=u\tau_{xx}+v\tau_{yx}+w\tau_{zx}-q_x,\\
+ \Psi_y&=u\tau_{xy}+v\tau_{yy}+w\tau_{zy}-q_y,\\
+ \Psi_z&=u\tau_{xz}+v\tau_{yz}+w\tau_{zz}-q_z.
+\end{align*}
+由于总通量是 $I-V$，最终能量通量中的导热项为 $+q_x=-kT_x$，其余方向同理。
+忽略黏性、热传导及体源即得到 Euler 方程。量热完全气体可用
+$p=(\gamma-1)[E_t-\rho(u^2+v^2+w^2)/2]$ 闭合，$\gamma=c_p/c_v$ 为常数。
+增加组分时，把 $\rho Y_s$ 加入 $\mathbf U$，相应 $x$ 向总通量为
+$\rho uY_s+j_{s,x}$，故按同一减号约定，其 $V$ 分量是 $-j_{s,x}$，源项是 $\dot\omega_s$。
+
+\paragraph{初始与边界条件}
+同一组控制方程可描述不同流动，差别来自几何、初值与边界条件。
+黏性固壁通常施加无滑移和不可穿透条件；Euler 固壁只施加不可穿透条件。
+热边界可取给定壁温或给定热流，绝热对应 $\mathbf q\cdot\mathbf n=0$。
+给定壁温并非所有固壁的统一条件。
 
 \subsection{偏微分方程的数学性质}
-    本小节的核心是分析控制方程写出来以后，信息到底是怎样在计算域里传播的。这里主要考虑考虑拟线性PDE
-    \begin{align}
-        a_1\frac{\partial u}{\partial x}
-        +b_1\frac{\partial u}{\partial y}
-        +c_1\frac{\partial v}{\partial x}
-        +d_1\frac{\partial v}{\partial y}
-        &=f_1, \\
-        a_2\frac{\partial u}{\partial x}
-        +b_2\frac{\partial u}{\partial y}
-        +c_2\frac{\partial v}{\partial x}
-        +d_2\frac{\partial v}{\partial y}
-        &=f_2.
-    \label{CFD:LinearEquationGroup}
-    \end{align}
-    因为他们是Euler或者NS方程整理后的一般形式。
+\label{sec:cfd-pde}
+\noindent\textit{依据：课件第27--35页；Anderson 第3.2--3.5节。}
 
-    \textbf{特征} 
-    特征线是信息传播的独特退化路径，可以理解为信息传播分水岭，沿这个特殊方向，偏导数之间不再完全独立，而出现了一个只沿该方向成立的兼容关系。特征值可以理解为信息传播的速度。
-    \todo{这里放一下特征线与依赖域关系的图并且解释一下}
+本节分析信息如何传播，以及怎样配置初始与边界数据。
+拟线性指\textbf{最高阶导数线性出现}，其系数可以依赖自变量、未知量及低阶导数。
+以下二元一阶方程组是讨论特征的模型：
+\begin{equation}
+ \begin{aligned}
+ a_1u_x+b_1u_y+c_1v_x+d_1v_y&=f_1,\\
+ a_2u_x+b_2u_y+c_2v_x+d_2v_y&=f_2.
+ \end{aligned}
+ \label{CFD:LinearEquationGroup}
+\end{equation}
+这里 $u,v$ 是一般未知函数。Euler 方程可写成一阶拟线性系统；
+Navier--Stokes 方程包含黏性二阶导数，不能直接全部归为这个一阶模型。
 
-    我们给出两种方法来研究这个拟线性方程组的类型和特征值
-    
-    \textbf{A. 判别式法}
-    
-    假设沿着某一条曲线移动一个很小距离\((dx,dy).\) ，便可以引入
-    \begin{align}
-    du
-    =
-    \frac{\partial u}{\partial x}dx
-    +
-    \frac{\partial u}{\partial y}dy,
-    \\
-    dv
-    =
-    \frac{\partial v}{\partial x}dx
-    +
-    \frac{\partial v}{\partial y}dy.
-    \end{align}
+\paragraph{特征线、依赖域与影响域}
+沿非特征曲线给定数据时，方程通常能确定横向导数；沿特征曲线，相应系数矩阵退化，
+数据必须满足相容关系。对 $u_t+cu_x=0$，
+\[
+ \frac{\dd x}{\dd t}=c,\qquad
+ \frac{\dd u}{\dd t}=u_t+cu_x=0,
+ \qquad u(x,t)=u_0(x-ct).
+\]
+即信息沿 $x-ct=\text{常数}$ 传播。只有把某个自变量选为时间后，特征斜率才具有传播速度的解释。
+某点的\textbf{依赖域}是决定其解值所需的过去数据区域；\textbf{影响域}是该点扰动可到达的未来区域。
 
-    \todo{这里说一下怎么获得线性方程组Ax=b， 以及令detA=0即可求出特征方向。}
+\begin{figure}[htbp]
+ \centering
+ \setlength{\unitlength}{1cm}
+ \begin{picture}(10,4.4)
+  \put(0.5,0.7){\vector(1,0){8.7}}
+  \put(0.5,0.7){\vector(0,1){3.3}}
+  \put(9.3,0.65){$x$}\put(0.25,4){$t$}
+  \put(4.7,3.5){\circle*{0.10}}
+  \put(4.85,3.5){$P=(x_0,t_0)$}
+  \put(1.9,0.7){\line(1,1){2.8}}
+  \put(4.7,3.5){\line(1,-1){2.8}}
+  \linethickness{1pt}
+  \put(1.9,0.7){\line(1,0){5.6}}
+  \put(1.4,0.15){\small $x_0-ct_0$}
+  \put(7.0,0.15){\small $x_0+ct_0$}
+  \put(2.0,2.5){\small $\dd x/\dd t=c$}
+  \put(6.1,2.5){\small $\dd x/\dd t=-c$}
+  \put(3.6,1.25){\small 过去依赖域}
+ \end{picture}
+ \caption{一维波动方程 $u_{tt}=c^2u_{xx}$（$c>0$）的特征线与依赖域。
+ 初始线上的粗线段给出决定 $P$ 所需的数据范围；交换过去与未来即得到影响域。
+ 单向对流方程在初始线上只依赖一个点，不能与双向波动方程混同。}
+ \label{fig:cfd-characteristics}
+\end{figure}
 
-    进一步整理后可以得到二次方程
-    \begin{equation}
-        a\left(\frac{dy}{dx}\right)^2
-        +b\frac{dy}{dx}
-        +c=0
-    \end{equation}
-    其中
-    \begin{align*}  
-        a=a_1c_2-a_2c_1,
-        \\
-        b=-(a_1d_2-a_2d_1+b_1c_2-b_2c_1),
-        \\
-        c=b_1d_2-b_2d_1.
-    \end{align*}
-    而一般二次方程一致，我们可以给出判别式\(\Delta=b^2-4ac.\)
-    \todo{这里给出三种类型以及实特征线的数量}
+\paragraph{A. 判别式法}
+在曲线上加入 $\dd u=u_x\dd x+u_y\dd y$、$\dd v=v_x\dd x+v_y\dd y$，
+与式~\eqref{CFD:LinearEquationGroup} 联立为
+\begin{equation}
+ \underbrace{\begin{bmatrix}
+ a_1&b_1&c_1&d_1\\a_2&b_2&c_2&d_2\\
+ \dd x&\dd y&0&0\\0&0&\dd x&\dd y
+ \end{bmatrix}}_{\mathcal M}
+ \underbrace{\begin{bmatrix}u_x\\u_y\\v_x\\v_y\end{bmatrix}}_{\mathbf z}
+ =\underbrace{\begin{bmatrix}f_1\\f_2\\\dd u\\\dd v\end{bmatrix}}_{\mathbf b}.
+ \label{eq:cfd-characteristic-matrix}
+\end{equation}
+当 $\det\mathcal M\ne0$ 时，四个偏导数可被唯一恢复；
+$\det\mathcal M=0$ 给出特征方向，此时右端还须满足相容条件。
+若 $\dd x\ne0$，令 $m=\dd y/\dd x$，得到
+\begin{equation}
+ am^2+bm+c_0=0,
+ \quad\begin{cases}
+ a=a_1c_2-a_2c_1,\\
+ b=-(a_1d_2-a_2d_1+b_1c_2-b_2c_1),\\
+ c_0=b_1d_2-b_2d_1.
+ \end{cases}
+ \label{eq:cfd-characteristic-polynomial}
+\end{equation}
+此处用 $c_0$ 区分多项式常数项与波速 $c$。
+应保留齐次形式 $a(\dd y)^2+b\dd x\dd y+c_0(\dd x)^2=0$，
+以免漏掉 $\dd x=0$ 的竖直特征方向。不恒为零的二次特征式的判别式为 $\Delta=b^2-4ac_0$：
+\begin{center}
+ \begin{tabular}{lll}
+  \toprule
+  判别式 & 每点的实特征方向数 & 分类含义\\
+  \midrule
+  $\Delta>0$ & 两个不同方向 & 双曲型\\
+  $\Delta=0$ & 一个重合方向 & 重特征／退化情形，须进一步判断\\
+  $\Delta<0$ & 无实特征方向 & 椭圆型\\
+  \bottomrule
+ \end{tabular}
+\end{center}
+“方向”沿流场积分后才形成特征曲线，并非整个计算域只存在一条或两条曲线。
 
-    \textbf{B. 特征值法}
-    
-    定义\(\mathbf W=\begin{bmatrix}u\\v\end{bmatrix}.\)。因此方程~\ref{CFD:LinearEquationGroup}可以变成
-    \begin{equation}
-        A\frac{\partial\mathbf W}{\partial x}
-+
-B\frac{\partial\mathbf W}{\partial y}
-=0.
-    \end{equation}
-    进一步研究\(C=A^{-1}B\)的特征值，若特征值为不同实数，则是双曲型；若特征值重合，则是抛物线型；若出现负数，即为椭圆型。
-    这三种PDE类型引出了数值计算的几个关键要点：1. 数值方法通常须尊重信息传播方向；2. 上游和下游之间可以相互影响；3. 局部扰动可能影响全域
+\begin{remark}[重特征不等于一般系统必为抛物型]
+课件把 $\Delta=0$ 简记为“抛物型”。严格地说，二阶标量方程
+$A_2\phi_{xx}+2B_2\phi_{xy}+C_2\phi_{yy}+\text{低阶项}=0$
+在主部矩阵非零时，可按 $B_2^2-A_2C_2$ 的正、零、负分别分为双曲、抛物、椭圆型。
+对一阶系统，重根本身不足以判定抛物型，还必须检查特征向量与完整微分结构。
+若特征多项式恒为零，则上述三分判据不适用。
+\end{remark}
 
-\subsection{基础数值算法}%这部分完全交给你
-    \subsubsection{有限差分方法基础}
-    %从泰勒展开出发，给出几种差分方式的基本公式，以及对应的精度
-    \subsubsection{显式方法与隐式方法}
-    %给出显式和隐式方法的定义以及对应的求解方法
-    \subsubsection{误差与稳定性分析}
-    %先指出舍入误差同样满足离散方程，接着给出稳定性条件，并且从von Neumann稳定性分析方法入手级数中的每一项的变化方式与整个级数的变化方式是一样的，只只需考虑级数中的一项，若其是衰减的，则是稳定的，把分析范围收敛到一个级数项。以及CFL的概念。
+\paragraph{B. 特征值法}
+定义
+\[
+ \mathbf W=\begin{bmatrix}u\\v\end{bmatrix},\quad
+ A=\begin{bmatrix}a_1&c_1\\a_2&c_2\end{bmatrix},\quad
+ B=\begin{bmatrix}b_1&d_1\\b_2&d_2\end{bmatrix},\quad
+ \mathbf f=\begin{bmatrix}f_1\\f_2\end{bmatrix}.
+\]
+原式为 $A\mathbf W_x+B\mathbf W_y=\mathbf f$；
+非零源项不能无故丢掉，但不改变这里的主部特征式。
+若 $A$ 可逆，令 $C=A^{-1}B$，则
+\begin{equation}
+ \mathbf W_x+C\mathbf W_y=A^{-1}\mathbf f,
+ \qquad \det(B-mA)=\det(A)\det(C-mI)=0.
+ \label{eq:cfd-eigen-characteristics}
+\end{equation}
+因此 $C$ 的特征值就是 $\dd y/\dd x$。
+两个不同实特征值对应严格双曲型；一对非实共轭特征值对应这个实二阶系统的椭圆型。
+\textbf{负实特征值仍是实特征值，只表示反向特征斜率，绝非椭圆性的判据。}
+重实特征值且具有完整特征向量时，仍可为非严格双曲型；例如
+$C=cI$ 描述两份独立对流。若特征向量不足，则须分析弱双曲性与适定性。
+$A$ 奇异时不可使用 $A^{-1}$，应回到 $\det(B\dd x-A\dd y)=0$。
 
-    %接下来分别介绍几种更加精细化的数值算法，同时指出数值解的依赖区域必须全部包含解析解的依赖区域，包括Leap-Frog，Lax，用空间导数替换时间导数项的技巧，以及Lax-Wendroff 格式，要指出其稳定性和性质。接下来说明对于我们这种线性PDE问题，一致性+稳定性=收敛性。以及人工黏性耗散和Dissipation vs Dispersion和二阶和四阶导数项的影响（不细致推导，给出直观理解即可）
-    \subsubsection{计算网格}
-    %物理平面与计算平面的转化；二维网格的Jaccobian和曲线坐标下的2D欧拉方程
+对多维演化系统 $\mathbf U_t+A\mathbf U_x+B\mathbf U_y=0$，
+应对\textbf{每个实方向} $\mathbf n$ 检查 $A_n=n_xA+n_yB$：实谱且存在一致有界的对角化
+是强双曲性的条件，仅分别查看 $A$、$B$ 的特征值并不充分。
+在 $\rho>0,p>0$ 的理想气体物理状态下，Euler 方程沿单位法向的特征速度为
+$v_n-a_s,v_n,v_n,v_n,v_n+a_s$（三维），$a_s$ 为声速；重合的对流特征仍具有完整特征向量。
+
+\begin{example}[课件中的二维定常小扰动流]
+可压缩、无黏、无旋的均匀来流小扰动方程为
+\[
+ (1-M_\infty^2)u'_x+v'_y=0,\qquad u'_y-v'_x=0.
+\]
+当 $M_\infty\ne1$ 时，$m^2=1/(M_\infty^2-1)$。
+故 $M_\infty>1$ 时有两族实特征线，为双曲型；$M_\infty<1$ 时为椭圆型。
+在 $M_\infty=1$，矩阵 $A$ 奇异；相应势方程的二阶主部退化，不能继续套用 $A^{-1}B$。
+这些结论针对\emph{定常势流小扰动模型}，不能据此称非定常亚声速 Euler 系统为椭圆型。
+\end{example}
+
+\paragraph{分类对求解的影响}
+双曲型有有限传播速度，需要沿入射特征配置边界数据；
+抛物型如热方程 $u_t=\alpha u_{xx}$（$\alpha>0$）随时间扩散，在连续模型中具有无限传播速度；
+椭圆型如 Laplace 方程描述整体边值平衡，局部变化通常影响全域。
+“上、下游相互影响”应结合特征速度与具体模型判断，不能作为全部 PDE 的共同性质。
+适定问题要求解存在、唯一并连续依赖数据；离散格式不能弥补错误的定解条件。
+
+\subsection{基础数值算法}
+\label{sec:cfd-numerics}
+有限差分直接近似微分算子；有限体积对控制体积分并用共享面通量保证离散守恒；
+有限元通常从弱形式与基函数近似出发。以下按课件顺序，以均匀网格上的有限差分为主。
+
+\subsubsection{有限差分方法基础}
+\noindent\textit{依据：课件第35--48页；Anderson 第4.2--4.3节。}
+
+记 $x_i=i\Delta x$、$t_n=n\Delta t$，$u_i^n\approx u(x_i,t_n)$。
+在函数足够光滑时，Taylor 展开给出
+\[
+ u(x_i\pm\Delta x)=u_i\pm\Delta x\,u_x
+ +\frac{\Delta x^2}{2}u_{xx}\pm\frac{\Delta x^3}{6}u_{xxx}
+ +\frac{\Delta x^4}{24}u_{xxxx}+\cdots.
+\]
+相减消去偶数阶项，相加消去奇数阶项，得到
+\begin{align}
+ (u_x)_i&=\frac{u_{i+1}-u_i}{\Delta x}+O(\Delta x)
+                       &&\text{向前差分},\\
+ (u_x)_i&=\frac{u_i-u_{i-1}}{\Delta x}+O(\Delta x)
+                       &&\text{向后差分},\\
+ (u_x)_i&=\frac{u_{i+1}-u_{i-1}}{2\Delta x}+O(\Delta x^2)
+                       &&\text{中心差分},\\
+ (u_{xx})_i&=\frac{u_{i+1}-2u_i+u_{i-1}}{\Delta x^2}+O(\Delta x^2)
+                       &&\text{二阶导数的中心差分}.
+ \label{eq:cfd-second-difference}
+\end{align}
+边界附近也可使用二阶单边公式
+\[
+ (u_x)_i=\frac{-3u_i+4u_{i+1}-u_{i+2}}{2\Delta x}+O(\Delta x^2).
+\]
+二维混合导数可先后应用两个方向的中心差分：
+\begin{equation}
+ (u_{xy})_{i,j}=\frac{u_{i+1,j+1}-u_{i+1,j-1}-u_{i-1,j+1}+u_{i-1,j-1}}
+ {4\Delta x\Delta y}+O(\Delta x^2+\Delta y^2).
+ \label{eq:cfd-mixed-difference}
+\end{equation}
+以上精度针对均匀网格与光滑解；非均匀网格必须重新计算系数，间断处不能直接使用 Taylor 精度结论。
+例如前向时间差分的一阶导数误差为 $O(\Delta t)$，不等于每步解的误差也为 $O(\Delta t)$；
+把微分方程残差乘以 $\Delta t$ 后，每步局部误差还会多一个时间步因子。
+
+\subsubsection{显式方法与隐式方法}
+\noindent\textit{依据：课件第46--52页；Anderson 第4.4节、第9.3节。}
+
+\textbf{显式方法}由已知时间层直接算出新时间层；
+\textbf{隐式方法}的新时间层出现在需要求解的代数关系中，通常须联立求解，非线性时还需迭代。
+“一条方程有几个未知数”只是某些差分例子的直观表现，不是普遍定义。
+
+对一维热方程 $T_t=\alpha T_{xx}$（常数 $\alpha>0$），定义扩散数
+\[
+ r=\frac{\alpha\Delta t}{\Delta x^2},\qquad
+ \delta_{xx}T_i=\frac{T_{i+1}-2T_i+T_{i-1}}{\Delta x^2}.
+\]
+FTCS（时间向前、空间中心）为
+\begin{equation}
+ T_i^{n+1}=T_i^n+r(T_{i+1}^n-2T_i^n+T_{i-1}^n),
+ \qquad O(\Delta t+\Delta x^2).
+ \label{eq:cfd-heat-ftcs}
+\end{equation}
+Crank--Nicolson（CN）对新旧时间层的空间算子取平均：
+\begin{equation}
+ \frac{T_i^{n+1}-T_i^n}{\Delta t}
+ =\frac\alpha2(\delta_{xx}T_i^{n+1}+\delta_{xx}T_i^n),
+ \qquad O(\Delta t^2+\Delta x^2).
+ \label{eq:cfd-cn}
+\end{equation}
+将未知量移至左端：
+\begin{equation}
+ -\frac r2T_{i-1}^{n+1}+(1+r)T_i^{n+1}-\frac r2T_{i+1}^{n+1}
+ =\frac r2T_{i-1}^n+(1-r)T_i^n+\frac r2T_{i+1}^n.
+ \label{eq:cfd-cn-tridiagonal}
+\end{equation}
+给定两端温度时，边界贡献并入右端；全部内部节点组成三对角系统，可用 Thomas 算法以 $O(N)$ 代价求解。
+周期边界对应循环三对角系统，需采用相应修正。
+显式格式单步简单，但通常受时间步限制；隐式格式可减轻某些稳定性限制，却增加线性／非线性求解代价。
+\textbf{隐式不自动等于无条件稳定，无条件稳定也不等于任意大时间步都准确。}
+
+\subsubsection{误差与稳定性分析}
+\label{sec:cfd-stability}
+\noindent\textit{依据：课件第53--72页；Anderson 第4.5节、第6.2--6.3节、第6.6节。}
+
+\paragraph{A. 误差传播与 von Neumann 分析}
+记连续问题的精确解在网格上的取值为 $u$，离散方程的精确解为 $D$，计算机结果为 $N$。
+离散误差为 $D-u$，舍入误差为 $\epsilon=N-D$，总误差是两者之和。
+若线性格式写为 $D^{n+1}=Q D^n+b^n$，则
+\begin{equation}
+ \epsilon^{n+1}=Q\epsilon^n+\eta^n,
+ \label{eq:cfd-error-propagation}
+\end{equation}
+$\eta^n$ 是本步新引入的舍入／代数求解误差。
+\textbf{忽略新的误差注入时}，扰动满足齐次差分方程；不能说实际每步产生的舍入误差严格满足无源方程。
+
+稳定性的本质是在固定时间区间 $0\le n\Delta t\le T$ 内，
+传播算子 $\|Q^n\|\le C_T$，且 $C_T$ 不随网格加密而发散。
+误差不必逐步衰减；无耗散格式也可以稳定。
+对\textbf{线性、常系数、均匀网格，且周期或无限域}的问题，可作 Fourier 展开：
+\[
+ \epsilon_i^n=\sum_m\widehat\epsilon_m^n e^{\mathrm i k_mx_i},\qquad
+ \widehat\epsilon_m^{n+1}=g(\theta_m)\widehat\epsilon_m^n,
+ \qquad\theta_m=k_m\Delta x.
+\]
+空间平移使各模态独立，因此可代入单个模式
+$\epsilon_i^n=g^n e^{\mathrm i i\theta}$ 求放大因子，再检查\textbf{所有}可解析波数
+$\theta\in[-\pi,\pi]$。不是所有模态有相同增长率，也不是只检查某一个选定波数。
+对下述无物理增长的标量单步格式，常用 $|g(\theta)|\le1$ 的不放大判据；
+更一般的有限时间稳定性允许 $|g|\le1+C\Delta t$。
+多步格式还须检查全部根及单位圆重根，系统还须检查矩阵幂的一致有界性。
+变系数、非线性和边界闭合可能引入额外不稳定，不能只靠这一分析下结论。
+
+热方程 FTCS 代入后，
+\[
+ g=1+r(e^{\mathrm i\theta}-2+e^{-\mathrm i\theta})
+   =1-4r\sin^2(\theta/2).
+\]
+故 $|g|\le1$ 对所有 $\theta$ 成立的条件是 $\boxed{0\le r\le1/2}$。
+CN 则有
+\begin{equation}
+ g_{\mathrm{CN}}=\frac{1-2r\sin^2(\theta/2)}{1+2r\sin^2(\theta/2)},
+ \qquad |g_{\mathrm{CN}}|\le1\quad(r\ge0).
+ \label{eq:cfd-cn-amplification}
+\end{equation}
+这是上述热方程的无条件稳定结论。大 $r$ 时高频模态可能 $g<0$ 且接近 $-1$，
+因而出现衰减很慢的交替振荡；稳定不保证单调、无振荡或准确。
+
+\paragraph{B. 对流方程、FTCS 与 CFL}
+以下取 $u_t+cu_x=0$，$c$ 为常数，定义带符号 Courant 数
+\begin{equation}
+ \nu=\frac{c\Delta t}{\Delta x}.
+ \label{eq:cfd-courant}
+\end{equation}
+$|\nu|$ 是一个时间步内信息传播距离与网格间距之比。
+这里用 $\nu$ 表示课件中的 CFL 数，避免与特征值 $\lambda$ 混淆；扩散数仍记为 $r$。
+FTCS 为
+\[
+ u_i^{n+1}=u_i^n-\frac\nu2(u_{i+1}^n-u_{i-1}^n),\qquad
+ g=1-\mathrm i\nu\sin\theta,
+ \qquad |g|^2=1+\nu^2\sin^2\theta.
+\]
+任何非零 $\nu$ 都不能使所有模态满足 $|g|\le1$。
+在通常固定非零 Courant 数、$\Delta t\propto\Delta x$ 的对流加密路径下，FTCS 不稳定，
+课件称为“无条件不稳定”。严格按有限时间有界定义，若额外取
+$\Delta t=O(\Delta x^2)$ 可限制累计放大；这不改变它缺少对流尺度稳定区间、通常不宜用于纯对流的结论。
+
+\textbf{CFL 必要条件：数值依赖域必须包含连续问题的依赖域。}
+三点显式格式每步最多跨一个网格，因此其信息传播上限为 $\Delta x/\Delta t$，
+须有 $|c|\le\Delta x/\Delta t$，即 $|\nu|\le1$。
+如图~\ref{fig:cfd-characteristics} 所示，对双向波动，物理依赖区间
+$[x_0-ct_0,x_0+ct_0]$ 必须落在数值依赖区间内；对单向对流则检查初始脚点 $x_0-ct_0$。
+\textbf{CFL 是必要条件，并非一般充分条件}：FTCS 即使满足 $|\nu|\le1$ 仍可能不稳定。
+系统应采用最大特征速度，Euler 方程常涉及 $|v_n|+a_s$；
+多维、多阶段及隐式格式的限制须按实际格式分析，不存在通用的“CFL 总要小于1”。
+
+\paragraph{C. Leap-Frog（CTCS）格式}
+时间和空间都用中心差分：
+\begin{equation}
+ u_i^{n+1}=u_i^{n-1}-\nu(u_{i+1}^n-u_{i-1}^n),
+ \qquad O(\Delta t^2+\Delta x^2).
+ \label{eq:cfd-leapfrog}
+\end{equation}
+代入 Fourier 模式，得到
+\[
+ g^2+2\mathrm i\nu\sin\theta\,g-1=0,\qquad
+ g_\pm=-\mathrm i\nu\sin\theta\pm\sqrt{1-\nu^2\sin^2\theta}.
+\]
+当 $|\nu|<1$ 时，两根模长均为1：没有幅值耗散，但有相位误差。
+需要两个时间层，必须用另一个一致格式计算第一步；除物理解支外，还有随步数交替的计算模态。
+\textbf{端点需注意：}$|\nu|=1$ 时某些波数产生单位圆重根，任意两层扰动可出现
+$n g^n$ 增长；教材常写 $|\nu|\le1$ 的模长条件，严格稳健计算通常取
+$|\nu|\le\nu_{\max}<1$ 并采用相容启动。
+
+同一个 Leap-Frog 用于热方程则有
+$g^2+8r\sin^2(\theta/2)g-1=0$。
+对 $r>0$ 的非零波数，必有一根模长大于1，故不稳定。
+稳定性结论必须与\emph{所离散的方程}一起记忆。
+
+\paragraph{D. Lax（Lax--Friedrichs）格式}
+将对流 FTCS 右端的 $u_i^n$ 改为邻点平均：
+\begin{equation}
+ u_i^{n+1}=\frac{u_{i+1}^n+u_{i-1}^n}{2}
+          -\frac\nu2(u_{i+1}^n-u_{i-1}^n).
+ \label{eq:cfd-lax}
+\end{equation}
+其放大因子及模长为
+\[
+ g=\cos\theta-\mathrm i\nu\sin\theta,\qquad
+ |g|^2=1-(1-\nu^2)\sin^2\theta.
+\]
+故稳定条件为 $|\nu|\le1$。它通过邻点平均引入数值耗散，会抹平陡峭梯度；
+在固定非零 $\nu$ 下整体为一阶精度。
+其一致性还要求 $\Delta x^2/\Delta t\to0$；固定空间网格时，盲目减小时间步反而会增加平均操作造成的扩散。
+
+\paragraph{E. 用空间导数替换时间导数：Lax--Wendroff}
+先在时间上作二阶 Taylor 展开，再用 PDE 消去时间导数：
+\[
+ u^{n+1}=u^n+\Delta t\,u_t+\tfrac12\Delta t^2u_{tt}+O(\Delta t^3),
+ \qquad u_t=-cu_x,\quad u_{tt}=c^2u_{xx}.
+\]
+最后用空间中心差分，得到
+\begin{equation}
+ u_i^{n+1}=u_i^n-\frac\nu2(u_{i+1}^n-u_{i-1}^n)
+ +\frac{\nu^2}{2}(u_{i+1}^n-2u_i^n+u_{i-1}^n).
+ \label{eq:cfd-lax-wendroff}
+\end{equation}
+这是时间、空间二阶格式。
+\begin{align*}
+ g&=1-\mathrm i\nu\sin\theta+\nu^2(\cos\theta-1),\\
+ |g|^2&=1-4\nu^2(1-\nu^2)\sin^4(\theta/2).
+\end{align*}
+因此稳定区间为 $\boxed{|\nu|\le1}$，不存在必须满足 $|\nu|>0.5$ 的普遍下限。
+它比 Lax 更能保留光滑波形，但不是单调格式，在间断附近可能出现色散振荡。
+对这个常速线性模型，$\nu=\pm1$ 时退化为恰好平移一个网格。
+
+\paragraph{补充：两步 Lax--Wendroff 与 MacCormack}
+对守恒律 $u_t+f(u)_x=0$，两步 Lax--Wendroff（Richtmyer）写为
+\begin{align*}
+ u_{i+1/2}^{n+1/2}
+ &=\tfrac12(u_{i+1}^n+u_i^n)
+   -\frac{\Delta t}{2\Delta x}[f(u_{i+1}^n)-f(u_i^n)],\\
+ u_i^{n+1}
+ &=u_i^n-\frac{\Delta t}{\Delta x}
+       [f(u_{i+1/2}^{n+1/2})-f(u_{i-1/2}^{n+1/2})].
+\end{align*}
+MacCormack 则在原节点预估并反向校正：
+\begin{align*}
+ u_i^*&=u_i^n-\frac{\Delta t}{\Delta x}[f(u_{i+1}^n)-f(u_i^n)],\\
+ u_i^{n+1}&=\tfrac12\left\{u_i^n+u_i^*
+      -\frac{\Delta t}{\Delta x}[f(u_i^*)-f(u_{i-1}^*)]\right\}.
+\end{align*}
+二者对光滑解可达二阶；当 $f(u)=cu$ 时都化为式~\eqref{eq:cfd-lax-wendroff}。
+对非线性系统不能直接照搬这个标量稳定性证明，间断附近通常还需适当的耗散或限制器。
+
+\paragraph{F. 一致性、稳定性与收敛性}
+\begin{itemize}
+ \item \textbf{一致性（consistency）：}把足够光滑的 PDE 精确解代入离散算子，按微分方程量纲定义的截断误差随网格细化趋于0。
+ \item \textbf{稳定性（stability）：}初值、舍入或强迫中的扰动在指定时间区间内受到与网格无关的控制。
+ \item \textbf{收敛性（convergence）：}沿规定的 $\Delta t$、$\Delta x$ 加密关系，离散解在相应范数下趋于连续问题的解。
+\end{itemize}
+Lax 等价定理针对\textbf{适定的线性初值问题及其一致的线性差分逼近}，在相应函数空间与范数下给出
+\[
+ \boxed{\text{一致性}+\text{稳定性}\ \Longrightarrow\ \text{收敛性}},
+ \qquad\text{且在这些前提下，稳定性与收敛性等价。}
+\]
+有边界时还必须把边界处理纳入稳定性讨论。
+该定理不能直接推广到任意非线性 PDE；非线性守恒律还涉及离散守恒、紧性与熵条件等。
+
+\paragraph{G. 修正方程、耗散与色散}
+修正方程把差分格式展开为原 PDE 加上网格相关的高阶项，用于解释误差的作用。
+它是光滑解下的渐近分析，有限项截断不能取代对所有网格波数的稳定性检验。
+对纯对流，以固定 Courant 数进行展开，几个主导项为
+\begin{align}
+ \text{FTCS:}\quad u_t+cu_x
+   &=-\frac{c^2\Delta t}{2}u_{xx}+\cdots,\\
+ \text{迎风（$c>0$）:}\quad u_t+cu_x
+   &=\frac{c\Delta x}{2}(1-\nu)u_{xx}+\cdots,\\
+ \text{Lax:}\quad u_t+cu_x
+   &=\frac{\Delta x^2}{2\Delta t}(1-\nu^2)u_{xx}+\cdots,\\
+ \text{Lax--Wendroff:}\quad u_t+cu_x
+   &=\frac{c\Delta x^2}{6}(\nu^2-1)u_{xxx}+\cdots.
+ \label{eq:cfd-modified}
+\end{align}
+这里迎风格式为 $u_i^{n+1}=u_i^n-\nu(u_i^n-u_{i-1}^n)$，稳定范围为 $0\le\nu\le1$；
+$c<0$ 时改用向前空间差分，其数值扩散系数是
+$|c|\Delta x(1-|\nu|)/2$。
+FTCS 的负扩散解释了误差增长；迎风与 Lax 的正扩散抹平梯度；
+Lax--Wendroff 的主导三阶项改变波的相位。
+\begin{itemize}
+ \item \textbf{耗散（dissipation）：}不同波数的振幅被衰减。它可抑制高频噪声，也会使激波或接触间断变宽。
+ \item \textbf{色散（dispersion）：}不同波数以不同的数值相速度传播，导致波形畸变与振荡。
+       课件第68页把奇数阶导数的作用再次写成 dissipation，应改为 dispersion。
+\end{itemize}
+对实常系数的修正方程，偶数阶空间导数改变振幅，奇数阶空间导数改变相位；
+偶数阶项究竟耗散还是反耗散，还取决于符号。具体取
+\begin{equation}
+ u_t+cu_x=\epsilon_2u_{xx}-\epsilon_4u_{xxxx},
+ \qquad\epsilon_2,\epsilon_4\ge0.
+ \label{eq:cfd-artificial-viscosity}
+\end{equation}
+因为 $\partial_{xx}e^{\mathrm ikx}=-k^2e^{\mathrm ikx}$、
+$\partial_{xxxx}e^{\mathrm ikx}=k^4e^{\mathrm ikx}$，振幅的增长率是
+$-\epsilon_2k^2-\epsilon_4k^4\le0$。
+因此右端二阶项取正系数，四阶项取负系数才是耗散；四阶耗散对短波更有选择性。
+不能用“二阶导数总小于0”解释稳定性，它的点值并不总为负。
+四阶导数的常用中心近似为
+\[
+ u_{xxxx}(x_i)\approx
+ \frac{u_{i+2}-4u_{i+1}+6u_i-4u_{i-1}+u_{i-2}}{\Delta x^4}.
+\]
+人工黏性是人为或由离散隐含引入的数值耗散，区别于流体的物理黏性。
+加入人工项后仍须检验完整格式的稳定性；显式推进还会受
+$\epsilon_2\Delta t/\Delta x^2$、$\epsilon_4\Delta t/\Delta x^4$ 的限制。
+若目标仍是原无黏方程，人工项必须在加密极限中以适当方式消失，并宜以通量差形式加入以保持离散守恒。
+
+\paragraph{补充：对流扩散与算子分裂}
+对 $u_t+cu_x=\alpha u_{xx}$，未分裂 FTCS 的放大因子为
+$g=1-4r\sin^2(\theta/2)-\mathrm i\nu\sin\theta$，稳定条件是
+\[
+ 0\le r\le\tfrac12,\qquad \nu^2\le2r.
+\]
+这说明对流与扩散的限制应一起检查，不能简单套用两个独立结论。
+若写成 $u_t=Lu+Nu$，Lie 分裂依次求解 $u_t=Lu$ 和 $u_t=Nu$ 各推进 $\Delta t$，
+组合近似一个完整步，通常时间一阶；Strang 分裂按
+$L(\Delta t/2)\to N(\Delta t)\to L(\Delta t/2)$ 对称组合，
+在解与算子足够光滑、子问题求解足够准确时可达时间二阶。
+子问题的右端符号必须与原式一致；分裂不会自动消除子步骤的稳定性与边界误差。
+
+\clearpage
+\subsubsection{计算网格}
+\label{sec:cfd-grid}
+\noindent\textit{依据：课件第37--39、73--83页；Anderson 第5.2--5.7节。}
+
+\paragraph{网格类型与质量}
+结构网格具有规则的逻辑索引，可构成 O、C、H 型贴体网格；非结构网格由显式的单元连接关系组织，
+适合复杂几何与局部加密。网格应准确表示边界，在边界层、激波等高梯度区域加密，
+使尺寸变化平缓并控制倾斜程度。课件的网格夹角 $60^\circ$--$120^\circ$ 是经验范围，
+不是普适稳定性定理；应结合离散方法检查正交性、扭曲度与网格收敛性。
+
+\paragraph{物理平面到计算平面}
+以\textbf{固定不随时间运动}的二维光滑贴体网格为例，建立
+\[
+ (x,y)\longleftrightarrow(\xi,\eta),\qquad
+ x=x(\xi,\eta),\quad y=y(\xi,\eta).
+\]
+物理平面中的曲线、非均匀网格在计算平面中对应规则索引网格；
+场量仍代表相同物理点，几何复杂性转移到度量系数中。
+一阶导数的链式法则是
+\begin{align*}
+ \partial_\xi&=x_\xi\partial_x+y_\xi\partial_y,
+ &\partial_\eta&=x_\eta\partial_x+y_\eta\partial_y,\\
+ \partial_x&=\xi_x\partial_\xi+\eta_x\partial_\eta,
+ &\partial_y&=\xi_y\partial_\xi+\eta_y\partial_\eta.
+\end{align*}
+定义两个互为倒数的行列式：
+\begin{equation}
+ D=\det\frac{\partial(x,y)}{\partial(\xi,\eta)}
+   =x_\xi y_\eta-x_\eta y_\xi,
+ \qquad
+ J=\det\frac{\partial(\xi,\eta)}{\partial(x,y)}=\frac1D.
+ \label{eq:cfd-jacobian}
+\end{equation}
+\textbf{本讲采用课件的 $J$ 约定；Anderson 第5章的 Jacobian 对应这里的 $D$。}
+局部可逆要求 $D\ne0$，度量有限；实际网格还须无全局折叠。
+以下取保向映射 $D>0$，于是 $\dd x\dd y=D\dd\xi\dd\eta=J^{-1}\dd\xi\dd\eta$。
+仅要求“Jacobian 有限”不足以排除退化。
+
+逆矩阵给出
+\begin{equation}
+ \begin{bmatrix}\xi_x&\xi_y\\\eta_x&\eta_y\end{bmatrix}
+ =\begin{bmatrix}x_\xi&x_\eta\\y_\xi&y_\eta\end{bmatrix}^{-1}
+ =J\begin{bmatrix}y_\eta&-x_\eta\\-y_\xi&x_\xi\end{bmatrix}.
+ \label{eq:cfd-metrics}
+\end{equation}
+故
+\begin{equation}
+ \partial_x=J(y_\eta\partial_\xi-y_\xi\partial_\eta),\qquad
+ \partial_y=J(-x_\eta\partial_\xi+x_\xi\partial_\eta).
+ \label{eq:cfd-transformed-derivatives}
+\end{equation}
+二阶导数还要对度量求导，不能把变系数当常数直接平方。
+
+\paragraph{曲线坐标下的二维 Euler 方程}
+无体源时，物理平面中的方程为
+\[
+ \mathbf U_t+\mathbf F_x+\mathbf G_y=0,
+ \quad
+ \mathbf U=\begin{bmatrix}\rho\\\rho u\\\rho v\\E_t\end{bmatrix},\quad
+ \mathbf F=\begin{bmatrix}\rho u\\\rho u^2+p\\\rho uv\\u(E_t+p)\end{bmatrix},\quad
+ \mathbf G=\begin{bmatrix}\rho v\\\rho uv\\\rho v^2+p\\v(E_t+p)\end{bmatrix},
+\]
+其中 $E_t=\rho[e+(u^2+v^2)/2]$。代入式~\eqref{eq:cfd-transformed-derivatives} 并除以 $J$，得到
+\[
+ \frac1J\mathbf U_t
+ +y_\eta\mathbf F_\xi-y_\xi\mathbf F_\eta
+ -x_\eta\mathbf G_\xi+x_\xi\mathbf G_\eta=0.
+\]
+由于映射不随时间变，且混合偏导可交换，满足度量恒等式
+\[
+ \partial_\xi y_\eta-\partial_\eta y_\xi=0,\qquad
+ -\partial_\xi x_\eta+\partial_\eta x_\xi=0.
+\]
+利用乘积法则，度量导数项相消，从而恢复强守恒形式：
+\begin{equation}
+ \boxed{\frac{\partial\widetilde{\mathbf U}}{\partial t}
+       +\frac{\partial\widetilde{\mathbf F}}{\partial\xi}
+       +\frac{\partial\widetilde{\mathbf G}}{\partial\eta}=0},
+ \label{eq:cfd-curvilinear-euler}
+\end{equation}
+\begin{align}
+ \widetilde{\mathbf U}&=\frac{\mathbf U}{J}=D\mathbf U,\\
+ \widetilde{\mathbf F}&=\frac{\xi_x\mathbf F+\xi_y\mathbf G}{J}
+                   =y_\eta\mathbf F-x_\eta\mathbf G,\\
+ \widetilde{\mathbf G}&=\frac{\eta_x\mathbf F+\eta_y\mathbf G}{J}
+                   =-y_\xi\mathbf F+x_\xi\mathbf G.
+ \label{eq:cfd-transformed-fluxes}
+\end{align}
+定义逆变速度 $V^\xi=\xi_xu+\xi_yv$、$V^\eta=\eta_xu+\eta_yv$，则展开的通量为
+\begin{equation}
+ \widetilde{\mathbf F}=\frac1J
+ \begin{bmatrix}
+ \rho V^\xi\\\rho uV^\xi+\xi_xp\\\rho vV^\xi+\xi_yp\\(E_t+p)V^\xi
+ \end{bmatrix},\qquad
+ \widetilde{\mathbf G}=\frac1J
+ \begin{bmatrix}
+ \rho V^\eta\\\rho uV^\eta+\eta_xp\\\rho vV^\eta+\eta_yp\\(E_t+p)V^\eta
+ \end{bmatrix}.
+ \label{eq:cfd-expanded-curvilinear-fluxes}
+\end{equation}
+$V^\xi,V^\eta$ 含坐标尺度，通常不是沿单位法向的物理速度。
+若有体源，右端相应为 $\mathbf S/J$。
+例如 $x=2\xi,y=3\eta$ 时，$D=6,J=1/6$，应得到
+$\widetilde{\mathbf U}=6\mathbf U$、$\widetilde{\mathbf F}=3\mathbf F$、
+$\widetilde{\mathbf G}=2\mathbf G$，可用于自检是否把 $J$ 与 $1/J$ 混淆。
+离散度量应兼容上述恒等式，以保持均匀来流；运动网格还需网格速度通量与几何守恒律，不能直接套用固定网格公式。
+
+\paragraph{结构网格生成方法}
+\begin{itemize}
+ \item \textbf{代数／几何法：}由边界插值并用拉伸函数控制加密，生成快，但复杂边界下的正交性不易保证。
+ \item \textbf{复变量法：}二维共形映射满足 Cauchy--Riemann 关系
+       $\xi_x=\eta_y$、$\xi_y=-\eta_x$；导数非零处保角，适于构造正交网格。
+       单独满足两个 Laplace 方程并不自动保证共形，不能直接推广为三维保角方法。
+ \item \textbf{PDE 法：}求解椭圆型网格方程，如
+       $\nabla^2\xi=P(\xi,\eta)$、$\nabla^2\eta=Q(\xi,\eta)$，
+       由控制函数调节疏密并获得平滑网格；计算较贵，仍须检查网格是否折叠。
+\end{itemize}
+
+\paragraph{与数据驱动／降阶方法的联系（补充）}
+空间离散把 PDE 变成高维动力系统 $\dot{\mathbf a}=\mathbf R(\mathbf a)$。
+令 $\bar{\mathbf a}$ 为样本均值，收集中心化快照矩阵
+$X=[\mathbf a(t_1)-\bar{\mathbf a},\ldots,\mathbf a(t_m)-\bar{\mathbf a}]$，
+通过 $X=\Phi\Sigma\Psi^{\mathsf T}$ 的截断 SVD 提取 POD 基，
+近似 $\mathbf a\approx\bar{\mathbf a}+\Phi_r\mathbf z$，再作 Galerkin 投影可得降阶模型。
+若使用非均匀网格，物理积分内积应包含网格体积／Jacobian 权重。
+低秩表示误差小并不自动保证降阶动力学稳定或守恒，仍须检验。
+这里仅使用 Brunton 与 Kutz 第1章、第11.1节支撑 SVD、POD 和投影的联系；
+不把这些内容作为前述 CFD 稳定性结论的依据。\cite{cfd:brunton}
+
+\begin{thebibliography}{9}
+ \bibitem{cfd:ppt}
+ 王兴建：《第一讲 CFD基础（第1、2周）-更新版》，2026年秋课程课件，83页。
+ 本讲主要依据第18--34页（方程与PDE）、第35--72页（离散与稳定性）、第73--83页（网格）。
+ 引用页码为PDF文件页序；对简化表述及明显笔误已在正文更正。
+
+ \bibitem{cfd:anderson}
+ John D. Anderson, Jr.：《计算流体力学基础及其应用》，所提供中文扫描版。
+ 重点参照第2章（控制方程）、第3章（PDE性质）、第4章（离散、显隐式与稳定性）、
+ 第5章（网格和坐标变换）、第6.2--6.3节（Lax--Wendroff与MacCormack）、
+ 第6.6节（耗散、色散及人工黏性）、第9.3节（Crank--Nicolson）。
+ 对应PDF文件页序约为37--77、79--96、98--126、129--161、163--168、173--179、303--313。
+
+ \bibitem{cfd:brunton}
+ Steven L. Brunton and J. Nathan Kutz:
+ \textit{Data-Driven Science and Engineering: Machine Learning, Dynamical Systems, and Control}.
+ Cambridge University Press, 2019.
+ 第1章、第11.1节；后者为所提供PDF第398页起，印刷页码375页起。
+ 仅用于本讲末尾关于SVD、POD及Galerkin降阶的补充。
+\end{thebibliography}
