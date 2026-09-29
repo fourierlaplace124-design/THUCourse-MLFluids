@@ -1,108 +1,75 @@
-% !TeX root = ../main.tex
-% 以下仅为课程笔记的写法示例，可整节替换为实际课堂内容。
-\section{基础概念与记号}
+
+\section{计算流体力学基础}
 \label{sec:basics}
 
-\subsection{学习目标与定义}
-本讲示例围绕速度场及其散度，展示定义、推导、计算和记录方式。
-记录课程内容时，应补充假设条件、符号含义及教材页码。
+\subsection{控制方程和矢量形式控制方程}
+    控制方程包含：质量守恒，动量守恒和能量守恒，若涉及燃烧和组分输运，就还包含组分守恒。
+    \todo{补全四个方程并参考我的形式说明每一项的意义}
+    \begin{equation}
+        \rho \frac{De}{Dt}[内能变化] =\rho\dot q[体热源]-p\nabla\cdot\mathbf v[压缩功]+\nabla\cdot(k\nabla T)+\text{黏性功}
+    \end{equation}
 
-\begin{definition}[速度场]
-\label{def:velocity}
-设流动区域为 $\Omega\subset\R^d$，时间区间为 $I\subset\R$。
-速度场 $\vect{u}\colon\Omega\times I\to\R^d$ 表示位置
-$\vect{x}$、时刻 $t$ 处的流体速度。
-\end{definition}
+    守恒形式可以被抽象为如下结构
+    \boxed{\text{内在局部变化 + 净流出 = 源项(Source)}}
+    
+    进一步给出矢量形式控制方程，这对CFD是更方便的形式：
+    U是conservative variables，J是组分变化，F，G和H分别是在x，y，z三个方向上的通量矢量。
+    NS方程进一步被压缩为
+    \begin{equation}
+        \frac{\partial U}{\partial t} + \frac{\partial F}{\partial x} + \frac{\partial G}{\partial y} + \frac{\partial H}{\partial z} = J
+    \end{equation}
+    \todo{说明F，G，H都是无粘项-粘性项，每一个I，V的公式}
 
-对空间变量连续可微的速度场，散度定义为
-\begin{equation}
-  \nabla\cdot\vect{u}
-  =\sum_{i=1}^{d}\frac{\partial u_i}{\partial x_i}.
-  \label{eq:divergence}
-\end{equation}
-公式~\eqref{eq:divergence} 中，各分量与坐标方向一一对应。
+\subsection{偏微分方程的数学性质}
+    本小节的核心是分析控制方程写出来以后，信息到底是怎样在计算域里传播的。这里主要考虑考虑拟线性PDE
+    \begin{align}
+        a_1\frac{\partial u}{\partial x}
+        +b_1\frac{\partial u}{\partial y}
+        +c_1\frac{\partial v}{\partial x}
+        +d_1\frac{\partial v}{\partial y}
+        &=f_1, \\
+        a_2\frac{\partial u}{\partial x}
+        +b_2\frac{\partial u}{\partial y}
+        +c_2\frac{\partial v}{\partial x}
+        +d_2\frac{\partial v}{\partial y}
+        &=f_2.
+    \end{align}
+    因为他们是Euler或者NS方程整理后的一般形式。
 
-\begin{theorem}[散度的线性性]
-\label{thm:linearity}
-若 $\vect{u},\vect{v}\in C^1(\Omega;\R^d)$，且 $a,b\in\R$ 为常数，则
-\[
-  \nabla\cdot(a\vect{u}+b\vect{v})
-  =a\nabla\cdot\vect{u}+b\nabla\cdot\vect{v}.
-\]
-\end{theorem}
-\begin{proof}
-将公式~\eqref{eq:divergence} 应用于各分量，由偏导数的线性性即可得到结论。
-\end{proof}
+    \textbf{特征} 
+    特征线是信息传播的独特退化路径，可以理解为信息传播分水岭，沿这个特殊方向，偏导数之间不再完全独立，而出现了一个只沿该方向成立的兼容关系。特征值可以理解为信息传播的速度。
+    \todo{这里放一下特征线与依赖域关系的图并且解释一下}
 
-\begin{example}[二维速度场]
-对 $\vect{u}(x,y)=(x,-y)$，有
-\begin{align}
-  \frac{\partial u_1}{\partial x}&=1, &
-  \frac{\partial u_2}{\partial y}&=-1,\\
-  \nabla\cdot\vect{u}&=1-1=0.
-\end{align}
-因此该速度场处处满足散度为零。
-\end{example}
+    我们给出两种方法来研究这个拟线性方程组的形状和
+    假设沿着某一条曲线移动一个很小距离\((dx,dy).\) ，便可以引入
+    \begin{align}
+    du
+    =
+    \frac{\partial u}{\partial x}dx
+    +
+    \frac{\partial u}{\partial y}dy,
+    \\
+    dv
+    =
+    \frac{\partial v}{\partial x}dx
+    +
+    \frac{\partial v}{\partial y}dy.
+    \end{align}
 
-\begin{remark}
-定理~\ref{thm:linearity} 中 $a,b$ 为常数；若它们随空间位置变化，
-需要使用乘积法则，不能直接套用该结论。
-\end{remark}
+    \todo{这里说一下怎么获得线性方程组Ax=b， 以及令detA=0即可求出特征方向。}
 
-% 为便于阅读，本示例将计算与图表放在新页；实际记录时可删除此分页。
-\clearpage
-\subsection{计算与资料记录}
-代码~\ref{lst:divergence} 用中心差分近似上例中的散度。
-这里的代码块仅用于展示，编译笔记不会运行程序。
-
-\begin{lstlisting}[language=Python,caption={中心差分计算散度},label={lst:divergence}]
-def divergence(x, y, h=1e-5):
-    # 中心差分：分别计算两个方向的偏导数
-    u = lambda x, y: x
-    v = lambda x, y: -y
-    du_dx = (u(x + h, y) - u(x - h, y)) / (2 * h)
-    dv_dy = (v(x, y + h) - v(x, y - h)) / (2 * h)
-    return du_dx + dv_dy
-
-print(divergence(1.0, 2.0))  # 结果应接近零
-\end{lstlisting}
-
-表~\ref{tab:symbols} 集中记录常用符号；图~\ref{fig:velocity} 为插图位置。
-\begin{table}[htbp]
-  \centering
-  \caption{本讲符号表}
-  \label{tab:symbols}
-  \begin{tabularx}{0.85\linewidth}{lX}
-    \toprule
-    符号 & 含义 \\
-    \midrule
-    $\Omega$ & 流动区域 \\
-    $\vect{x}$ & 空间位置 \\
-    $\vect{u}$ & 速度向量 \\
-    $\nabla\cdot\vect{u}$ & 速度场的散度 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-\begin{figure}[htbp]
-  \centering
-  % 将自己的图保存为 figures/velocity-field.pdf 即可自动显示。
-  % 使用其他文件名或 PNG/JPG 时，相应修改下面两处路径。
-  \IfFileExists{figures/velocity-field.pdf}{%
-    \includegraphics[width=0.65\linewidth]{figures/velocity-field.pdf}%
-  }{%
-    \fbox{\parbox[c][28mm][c]{0.65\linewidth}{\centering
-      速度场示意图占位\\[0.5em]
-      \small 添加图片后，这里会显示实际插图。}}%
-  }
-  \caption{速度场示意图（请替换为课程插图）}
-  \label{fig:velocity}
-\end{figure}
-
-\subsection{课后整理}
-\begin{itemize}
-  \item \textbf{核心结论：}用自己的话概括本讲结论及适用条件。
-  \item \textbf{待解决问题：}记录尚未理解的推导步骤或反例。
-  \item \textbf{课程来源：}补充教材名称、章节页码或课件日期；
-        使用在线资料时，记录原始链接与访问日期。
-\end{itemize}
+    进一步整理后可以得到二次方程
+    \begin{equation}
+        a\left(\frac{dy}{dx}\right)^2
+        +b\frac{dy}{dx}
+        +c=0
+    \end{equation}
+    其中
+    \begin{align*}  
+        a=a_1c_2-a_2c_1,
+        \\
+        b=-(a_1d_2-a_2d_1+b_1c_2-b_2c_1),
+        \\
+        c=b_1d_2-b_2d_1.
+    \end{align*}
+    
